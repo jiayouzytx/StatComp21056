@@ -1,0 +1,186 @@
+---
+title: "Introduction to StatComp21056"
+author: "Yu Zhang"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to StatComp21056}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+## Overview
+
+__StatComp21056__ is a simple R package developed to preprocess the longitudinal data which is combined genotype data with phenotype Data  of R and R++ (implemented through the R package _Rcpp_) for the 'Statistical Computing' course. Two functions are considered, namely, _myqc_ (Preliminary filter the genotype variables by annovar score system) and _myfl_ (). And a  Rcpp function, namely _fun98_ for C++.
+
+
+##  _myqc_
+
+The genotype data  is high-dimensional, so it is difficult to analysis by many methods.  Thus We can have a preliminary screening by ANNOVAR. ANNOVAR is a good way to handle with the SNP data, so we can apply the ideas to R. Firstly, import the exonic variant function by gene based annotation and Score alignment library, PolyPhen2, cadd, sift. The three scores can  assess the importance of genes well. When there are two scores show that the gene is important, then keep it. This is a way to quality control.
+
+The source R code for _myqc_ is as follows:
+```{r,eval=FALSE}
+myqc<-function(df,pp2,cadd,sift){
+  #one
+  #select nonsynonymous
+  nonsyno <- df[which(df$V2 == "nonsynonymous SNV" ),3:8] #2891 6
+  id_syno <-paste(paste(paste(paste(nonsyno$V4,nonsyno$V5,sep = ":"),nonsyno$V6,sep = "-"), nonsyno$V7,sep = "_"), nonsyno$V8, sep = "_") 
+  nonsyno[,7] <- id_syno
+  colnames(nonsyno)[7] <- "V9"
+  
+  #two
+  colnames(pp2)[1] <- "chr"
+  selected_nonsyno_1 <-pp2[which(pp2$Start %in% nonsyno$V5),] # 8852    7
+  id_sn <-paste(paste(paste(paste(selected_nonsyno_1$chr,selected_nonsyno_1$Start,sep = ":"),
+                            selected_nonsyno_1$End,sep = "-"), selected_nonsyno_1$Ref,sep = "_"), selected_nonsyno_1$Alt, sep = "_") 
+  selected_nonsyno_1[,8] <- id_sn
+  colnames(selected_nonsyno_1)<-c("V1","V2","V3","V4","V5","V6","V7","V8")
+  selected_nonsyno_2 <- selected_nonsyno_1[which(selected_nonsyno_1$V8 %in% nonsyno$V9),] #810   8
+  
+  #three
+  #CADD
+  colnames(cadd)[1] <- "chr"
+  selected_nonsyno_3 <-cadd[which(cadd$Start %in% nonsyno$V5),] # 9540    7
+  id_cadd <-paste(paste(paste(paste(selected_nonsyno_3$chr,selected_nonsyno_3$Start,sep = ":"),
+                              selected_nonsyno_3$End,sep = "-"), selected_nonsyno_3$Ref,sep = "_"), selected_nonsyno_3$Alt, sep = "_") 
+  selected_nonsyno_3[,8] <- id_cadd
+  colnames(selected_nonsyno_3)<-c("V1","V2","V3","V4","V5","V6","V7","V8")
+  selected_nonsyno_4 <- selected_nonsyno_3[which(selected_nonsyno_3$V8 %in% nonsyno$V9),] #[1] 827   8
+  
+  #four
+  #sift
+  colnames(sift)[1] <- "chr"
+  selected_nonsyno_5 <-sift[which(sift$Start %in% nonsyno$V5),]  # 9059    7
+  id_sift <-paste(paste(paste(paste(selected_nonsyno_5$chr,selected_nonsyno_5$Start,sep = ":"),
+                              selected_nonsyno_5$End,sep = "-"), selected_nonsyno_5$Ref,sep = "_"), selected_nonsyno_5$Alt, sep = "_") 
+  selected_nonsyno_5[,8] <- id_sift
+  colnames(selected_nonsyno_5)<-c("V1","V2","V3","V4","V5","V6","V7","V8")
+  selected_nonsyno_6 <- selected_nonsyno_5[which(selected_nonsyno_5$V8 %in% nonsyno$V9),] # 790   8
+  
+  S2<-selected_nonsyno_2[,6:8] #810 3  
+  S4<-selected_nonsyno_4[,6:8] #827 3
+  S6<-selected_nonsyno_6[,6:8] #790 3 
+  
+  zhname0<-rbind(as.matrix(S2[,3]),as.matrix(S4[,3]),as.matrix(S6[,3])) #810+827+790=2427
+  zhname<-unique(zhname0) 
+  kkk<-length(zhname)#827
+  
+  Table<-matrix(0,kkk,5)
+  Table[,1]<-zhname
+  #Table[,2]=pp2
+  for(i in 1:kkk){
+    n<-Table[i,1]
+    k<-which(S2[,3]==n)
+    if(length(k)!=0){
+      Table[i,2]=S2[k,2]
+    }else{
+      Table[i,2]=0
+    }
+  }
+  #Table[,3]=cadd
+  for(i in 1:kkk){
+    n<-Table[i,1]
+    k<-which(S4[,3]==n)
+    if(length(k)!=0){
+      Table[i,3]=S4[k,2]
+    }else{
+      Table[i,3]=0
+    }
+  }
+  #Table[,4]=sift
+  for(i in 1:kkk){
+    n<-Table[i,1]
+    k<-which(S6[,3]==n)
+    if(length(k)!=0){
+      Table[i,4]=S6[k,2]
+    }else{
+      Table[i,4]=0
+    }
+  }
+  #score to 0,1
+  for(i in 1:kkk){
+    if(Table[i,2]=="D"){
+      Table[i,2]=1
+    }else{
+      Table[i,2]=0
+    }
+  }
+  for(i in 1:kkk){
+    if(as.numeric(Table[i,3])>40){
+      Table[i,3]=1
+    }else{
+      Table[i,3]=0
+    }
+  }
+  for(i in 1:kkk){
+    if(Table[i,4]=="D"){
+      Table[i,4]=1
+    }else{
+      Table[i,4]=0
+    }
+  }
+  #
+  for(i in 1:kkk){
+    Table[i,5]=as.numeric(Table[i,2])+as.numeric(Table[i,3])+as.numeric(Table[i,4])
+  }
+  kk<-which(as.numeric(Table[,5])>=2)
+  nonsyno_Final<-Table[kk,1] #223
+  #six
+  nonsyno2<-df2[which(df$V2 == "nonsynonymous SNV" ),c(3:8,11)]  #V11:rs   2891 7
+  id_syno2 <-paste(paste(paste(paste(nonsyno2$V4,nonsyno2$V5,sep = ":"),nonsyno2$V6,sep = "-"), nonsyno2$V7,sep = "_"), nonsyno2$V8, sep = "_") 
+  nonsyno2[,8] <- id_syno2
+  colnames(nonsyno2)[8] <- "V9"
+  kk<-matrix(0,length(nonsyno_Final),1)
+  for(i in 1:length(nonsyno_Final)){
+    t<-nonsyno_Final[i]
+    k<-which(nonsyno2$V9==t)
+    kk[i]<-k
+  }
+  Allrs<-nonsyno2[kk,7]
+  return(Allrs)
+}
+
+```
+
+
+
+
+##  _myfl_
+
+For longitudinal data analysis, we need transform the SNP data into longitudinal data. So it is necessary to record the information of phenotype data, for example, the order and measurement number of sample. Then we can construct the longitudinal genotype data. There is a document about the relationship of genotype data and phenotype data. Firstly, We need to transform the character into number in sample's id in phenotype data by the ralationship document. Secondly, record the order and frequency of samples in phenotype data.
+
+
+The source R code for _myfl_ is as follows:
+
+```{r,eval=FALSE}
+function(pheno,dygx){
+  dygx1<-dygx[,1:2]
+  nn<-dim(pheno)[1]
+  for(i in 1:nn)
+  {
+    k1<-pheno$names[i]
+    k2<-which(dygx1[,2]==k1)
+    pheno$names[i]<-dygx1[k2,1]
+  }
+  id.pheno <- pheno[,"names"]
+  v0<-as.factor(id.pheno) 
+  K<-length (levels (v0) ) 
+  v1<- vector(mode="character", K) 
+  v1[1]<-id.pheno[1] 
+  k=1
+  for (i in 2:length(v0))
+  { 
+    if(id.pheno[i]!=id.pheno[i-1])
+    {
+      k=k+1
+      v1[k]=id.pheno[i]
+    }
+  }
+  v2<-table(v0) 
+  v3<-v2[v1] 
+  return(v3)
+}
+```
+
+
+

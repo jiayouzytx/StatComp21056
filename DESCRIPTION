@@ -1,0 +1,16 @@
+Package: StatComp21056
+Type: Package
+Title: Select gene variables by Annovar 
+Version: 1.0
+Date: 2021-12-14
+Author: Yu Zhang
+Maintainer: Yu Zhang <sa21204190zy@mail.ustc.edu.cn>
+Description: Several R and Rcpp function are included in to select variables.
+License: GPL (>= 2)
+Imports: Rcpp, microbenchmark, knitr, stringr,rmarkdown,boot,bootstrap,energy,Ball,MASS,RANN,
+LinkingTo: Rcpp
+RoxygenNote: 7.1.2
+Encoding: UTF-8
+VignetteBuilder: knitr
+URL: http://github.com/jiayouzytx/StatComp21056
+BugReports: http://github.com/jiayouzytx/StatComp21056/issues
